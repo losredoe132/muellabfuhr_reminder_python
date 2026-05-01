@@ -32,11 +32,10 @@ CONTAINER_COLORS: dict[PickupType, str] = {
     PickupType.RESTMUELL: "#FF0000",  # rote/schwarze Restmülltonne
     PickupType.BIO: "#00AA00",  # grüne Biotonne
     PickupType.PAPIER: "#0000FF",  # blaue Papiertonne
-    PickupType.GRAU: "#808080",  # graue Tonne
-    PickupType.UNBEKANNT: "#FFFFFF",
+    PickupType.UNBEKANNT: "#FF00FB",
 }
 
-DEFAULT_COLOR = "#FFFFFF"
+DEFAULT_COLOR = "#000000"
 
 
 @dataclass
@@ -73,7 +72,6 @@ def get_tomorrows_pickups(calendar: Calendar) -> list[Pickup]:
                 pickup_type = PickupType.UNBEKANNT
             summary = str(component.get("SUMMARY", "Unknown"))
             pickups.append(Pickup(type=pickup_type, summary=summary))
-    # pickups.append(Pickup(type=PickupType.RESTMUELL, summary="Test"))
     return pickups
 
 
@@ -94,19 +92,6 @@ def send_mqtt_color(color_hex: str) -> None:
     print(f"Published to {MQTT_TOPIC}: {payload}")
 
 
-def send_mqtt_brightness(brightness: int) -> None:
-    payload = str(brightness)
-    mqtt_publish.single(
-        MQTT_TOPIC,
-        payload=payload,
-        hostname=MQTT_HOSTNAME,
-        auth={"username": MQTT_USERNAME, "password": MQTT_PASSWORD}
-        if MQTT_USERNAME
-        else None,
-    )
-    print(f"Published to {MQTT_TOPIC}: {payload}")
-
-
 def main() -> None:
     print("Fetching Abholtermine …")
     calendar = fetch_calendar(ICS_URL)
@@ -114,7 +99,7 @@ def main() -> None:
     pickups = get_tomorrows_pickups(calendar)
     if not pickups:
         print("No Abholtermine tomorrow.")
-        return
+        send_mqtt_color(DEFAULT_COLOR)
 
     print(f"Abholtermine tomorrow ({date.today() + timedelta(days=1)}):")
     for pickup in pickups:
