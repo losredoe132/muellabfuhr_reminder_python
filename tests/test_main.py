@@ -1,5 +1,4 @@
-from datetime import date, datetime, timezone
-from textwrap import dedent
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -61,7 +60,6 @@ def test_type_to_color(pickup_type, expected_color):
 
 
 def test_get_tomorrows_pickups_finds_event():
-    tomorrow = date(2026, 5, 6)
     ics = _make_ics(
         [
             {
