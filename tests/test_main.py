@@ -197,7 +197,7 @@ def test_fetch_calendar_parses_response():
 
 def test_send_mqtt_publishes_correct_payload():
     with patch("main.mqtt_publish.single") as mock_single:
-        main.send_mqtt("broker.local", "wled/c1b27c", "#FFFF00")
+        main.send_mqtt_color("broker.local", "wled/c1b27c", "#FFFF00")
         mock_single.assert_called_once_with(
             "wled/c1b27c", payload="FFFF00", hostname="broker.local"
         )
@@ -205,6 +205,6 @@ def test_send_mqtt_publishes_correct_payload():
 
 def test_send_mqtt_strips_hash_and_uppercases():
     with patch("main.mqtt_publish.single") as mock_single:
-        main.send_mqtt("localhost", "wled/c1b27c", "#00aa00")
+        main.send_mqtt_color("localhost", "wled/c1b27c", "#00aa00")
         args, kwargs = mock_single.call_args
         assert kwargs["payload"] == "00AA00"
