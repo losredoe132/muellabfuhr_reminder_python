@@ -1,5 +1,7 @@
 import os
+from dataclasses import dataclass
 from datetime import date, timedelta
+from enum import Enum
 
 import paho.mqtt.publish as mqtt_publish
 import requests
@@ -14,17 +16,33 @@ MQTT_TOPIC = os.environ["MQTT_TOPIC"]
 MQTT_USERNMAE = os.environ.get("MQTT_USERNAME")
 MQTT_PASSWORD = os.environ.get("MQTT_PASSWORD")
 
-# RGB hex colors per container type (X-SRH-CONTAINER-TYPE field)
-CONTAINER_COLORS: dict[str, str] = {
-    "yellow": "#FFFF00",  # gelbe Wertstofftonne / gelber Sack
-    "black": "#FF0000",  # rote/schwarze Restmülltonne
-    "green": "#00AA00",  # grüne Biotonne
-    "blue": "#0000FF",  # blaue Papiertonne
-    "grey": "#808080",  # alternative grey spelling
-    "gray": "#808080",
+
+class PickupType(str, Enum):
+    WERTSTOFF = "yellow"
+    RESTMUELL = "black"
+    BIO = "green"
+    PAPIER = "blue"
+    GRAU = "grey"
+    UNBEKANNT = "unknown"
+
+
+# RGB hex colors per container type
+CONTAINER_COLORS: dict[PickupType, str] = {
+    PickupType.WERTSTOFF: "#FFFF00",  # gelbe Wertstofftonne / gelber Sack
+    PickupType.RESTMUELL: "#FF0000",  # rote/schwarze Restmülltonne
+    PickupType.BIO: "#00AA00",  # grüne Biotonne
+    PickupType.PAPIER: "#0000FF",  # blaue Papiertonne
+    PickupType.GRAU: "#808080",  # graue Tonne
+    PickupType.UNBEKANNT: "#FFFFFF",
 }
 
 DEFAULT_COLOR = "#FFFFFF"
+
+
+@dataclass
+class Pickup:
+    type: PickupType
+    summary: str
 
 
 def fetch_calendar(url: str) -> Calendar:
@@ -33,7 +51,7 @@ def fetch_calendar(url: str) -> Calendar:
     return Calendar.from_ical(response.content)
 
 
-def get_tomorrows_pickups(calendar: Calendar) -> list[dict]:
+def get_tomorrows_pickups(calendar: Calendar) -> list[Pickup]:
     tomorrow = date.today() + timedelta(days=1)
     pickups = []
     for component in calendar.walk():
@@ -46,14 +64,21 @@ def get_tomorrows_pickups(calendar: Calendar) -> list[dict]:
         if hasattr(event_date, "date"):
             event_date = event_date.date()
         if event_date == tomorrow:
-            container_type = str(component.get("X-SRH-CONTAINER-TYPE", "")).lower()
+            raw = str(component.get("X-SRH-CONTAINER-TYPE", "")).lower()
+            if raw == "gray":
+                raw = "grey"
+            try:
+                pickup_type = PickupType(raw)
+            except ValueError:
+                pickup_type = PickupType.UNBEKANNT
             summary = str(component.get("SUMMARY", "Unknown"))
-            pickups.append({"type": container_type, "summary": summary})
+            pickups.append(Pickup(type=pickup_type, summary=summary))
+        # pickups.append(Pickup(type=PickupType.BIO, summary="Test"))
     return pickups
 
 
-def type_to_color(container_type: str) -> str:
-    return CONTAINER_COLORS.get(container_type, DEFAULT_COLOR)
+def type_to_color(pickup_type: PickupType) -> str:
+    return CONTAINER_COLORS.get(pickup_type, DEFAULT_COLOR)
 
 
 def send_mqtt(hostname: str, topic: str, color_hex: str) -> None:
@@ -73,8 +98,8 @@ def main() -> None:
 
     print(f"Abholtermine tomorrow ({date.today() + timedelta(days=1)}):")
     for pickup in pickups:
-        color = type_to_color(pickup["type"])
-        print(f"  {pickup['summary']} (type={pickup['type']!r}) → {color}")
+        color = type_to_color(pickup.type)
+        print(f"  {pickup.summary} (type={pickup.type!r}) → {color}")
         send_mqtt(MQTT_HOSTNAME, MQTT_TOPIC, color)
 
 

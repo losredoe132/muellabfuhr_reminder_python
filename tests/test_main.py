@@ -41,20 +41,18 @@ def _make_ics(events: list[dict]) -> bytes:
 
 
 @pytest.mark.parametrize(
-    "container_type, expected_color",
+    "pickup_type, expected_color",
     [
-        ("yellow", "#FFFF00"),
-        ("black", "#FF0000"),
-        ("green", "#00AA00"),
-        ("blue", "#0000FF"),
-        ("grey", "#808080"),
-        ("gray", "#808080"),
-        ("unknown", "#FFFFFF"),  # fallback
-        ("", "#FFFFFF"),  # empty string fallback
+        (main.PickupType.WERTSTOFF, "#FFFF00"),
+        (main.PickupType.RESTMUELL, "#FF0000"),
+        (main.PickupType.BIO, "#00AA00"),
+        (main.PickupType.PAPIER, "#0000FF"),
+        (main.PickupType.GRAU, "#808080"),
+        (main.PickupType.UNBEKANNT, "#FFFFFF"),
     ],
 )
-def test_type_to_color(container_type, expected_color):
-    assert main.type_to_color(container_type) == expected_color
+def test_type_to_color(pickup_type, expected_color):
+    assert main.type_to_color(pickup_type) == expected_color
 
 
 # ---------------------------------------------------------------------------
@@ -82,8 +80,8 @@ def test_get_tomorrows_pickups_finds_event():
         pickups = main.get_tomorrows_pickups(cal)
 
     assert len(pickups) == 1
-    assert pickups[0]["type"] == "yellow"
-    assert pickups[0]["summary"] == "Abfuhr gelbe Wertstofftonne/-sack"
+    assert pickups[0].type == main.PickupType.WERTSTOFF
+    assert pickups[0].summary == "Abfuhr gelbe Wertstofftonne/-sack"
 
 
 def test_get_tomorrows_pickups_no_event_today():
@@ -139,8 +137,8 @@ def test_get_tomorrows_pickups_multiple_events():
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
         pickups = main.get_tomorrows_pickups(cal)
 
-    types = {p["type"] for p in pickups}
-    assert types == {"yellow", "green"}
+    types = {p.type for p in pickups}
+    assert types == {main.PickupType.WERTSTOFF, main.PickupType.BIO}
 
 
 def test_get_tomorrows_pickups_missing_container_type():
@@ -162,7 +160,7 @@ def test_get_tomorrows_pickups_missing_container_type():
         pickups = main.get_tomorrows_pickups(cal)
 
     assert len(pickups) == 1
-    assert pickups[0]["type"] == ""
+    assert pickups[0].type == main.PickupType.UNBEKANNT
 
 
 # ---------------------------------------------------------------------------
