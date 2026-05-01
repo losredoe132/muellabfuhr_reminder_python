@@ -44,7 +44,7 @@ def _make_ics(events: list[dict]) -> bytes:
     "container_type, expected_color",
     [
         ("yellow", "#FFFF00"),
-        ("black", "#808080"),
+        ("black", "#FF0000"),
         ("green", "#00AA00"),
         ("blue", "#0000FF"),
         ("grey", "#808080"),
