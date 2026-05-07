@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass
 from datetime import date, timedelta
-from enum import Enum
+from enum import IntEnum
 
 import paho.mqtt.publish as mqtt_publish
 import requests
@@ -17,13 +17,23 @@ MQTT_USERNAME = os.environ.get("MQTT_USERNAME")
 MQTT_PASSWORD = os.environ.get("MQTT_PASSWORD")
 
 
-class PickupType(str, Enum):
-    WERTSTOFF = "yellow"
-    RESTMUELL = "black"
-    BIO = "green"
-    PAPIER = "blue"
-    GRAU = "grey"
-    UNBEKANNT = "unknown"
+class PickupType(IntEnum):
+    WERTSTOFF = 1
+    RESTMUELL = 2
+    BIO = 3
+    PAPIER = 4
+    GRAU = 5
+    UNBEKANNT = 0
+
+
+PICKUP_TYPE_BY_NAME: dict[str, PickupType] = {
+    "yellow": PickupType.WERTSTOFF,
+    "black": PickupType.RESTMUELL,
+    "green": PickupType.BIO,
+    "blue": PickupType.PAPIER,
+    "grey": PickupType.GRAU,
+    "unknown": PickupType.UNBEKANNT,
+}
 
 
 # RGB hex colors per container type
@@ -66,10 +76,7 @@ def get_tomorrows_pickups(calendar: Calendar) -> list[Pickup]:
             raw = str(component.get("X-SRH-CONTAINER-TYPE", "")).lower()
             if raw == "gray":
                 raw = "grey"
-            try:
-                pickup_type = PickupType(raw)
-            except ValueError:
-                pickup_type = PickupType.UNBEKANNT
+            pickup_type = PICKUP_TYPE_BY_NAME.get(raw, PickupType.UNBEKANNT)
             summary = str(component.get("SUMMARY", "Unknown"))
             pickups.append(Pickup(type=pickup_type, summary=summary))
     return pickups
@@ -91,8 +98,19 @@ def send_mqtt_color(color_hex: str) -> None:
     )
     print(f"Published to {MQTT_TOPIC}: {payload}")
 
+def print_cfg() -> None:
+    print("Configuration:")
+    print(f"  ICS_URL: {ICS_URL}")
+    print(f"  MQTT_HOSTNAME: {MQTT_HOSTNAME}")
+    print(f"  MQTT_TOPIC: {MQTT_TOPIC}")
+    print(f"  MQTT_USERNAME: {'(hidden)' if MQTT_USERNAME else '(not set)'}")
+    print(f"  MQTT_PASSWORD: {'(hidden)' if MQTT_PASSWORD else '(not set)'}")
+    print()
+
 
 def main() -> None:
+    print_cfg()
+
     print("Fetching Abholtermine …")
     calendar = fetch_calendar(ICS_URL)
 
