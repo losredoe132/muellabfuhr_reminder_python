@@ -11,11 +11,9 @@ from icalendar import Calendar
 load_dotenv()
 
 ICS_URL = os.environ["ICS_URL"]
-MQTT_HOSTNAME = os.environ["MQTT_HOSTNAME"]
-MQTT_TOPIC = os.environ["MQTT_TOPIC"]
-MQTT_USERNAME = os.environ.get("MQTT_USERNAME")
-MQTT_PASSWORD = os.environ.get("MQTT_PASSWORD")
-
+HA_URL = os.getenv("HASS_IP")
+TOKEN = os.getenv("HASS_LLT")
+HASS_ENTITY_ID = os.getenv("HASS_ENTITY_ID")
 
 class PickupType(IntEnum):
     WERTSTOFF = 1
@@ -36,16 +34,16 @@ PICKUP_TYPE_BY_NAME: dict[str, PickupType] = {
 }
 
 
-# RGB hex colors per container type
-CONTAINER_COLORS: dict[PickupType, str] = {
-    PickupType.WERTSTOFF: "#FFFF00",  # gelbe Wertstofftonne / gelber Sack
-    PickupType.RESTMUELL: "#FF0000",  # rote/schwarze Restmülltonne
-    PickupType.BIO: "#00AA00",  # grüne Biotonne
-    PickupType.PAPIER: "#0000FF",  # blaue Papiertonne
-    PickupType.UNBEKANNT: "#FF00FB",
+# RGB colors per container type
+CONTAINER_COLORS: dict[PickupType, tuple[int, int, int]] = {
+    PickupType.WERTSTOFF: (255, 255, 0),    # gelbe Wertstofftonne / gelber Sack
+    PickupType.RESTMUELL: (255, 0, 0),      # rote/schwarze Restmülltonne
+    PickupType.BIO: (0, 170, 0),            # grüne Biotonne
+    PickupType.PAPIER: (0, 0, 255),         # blaue Papiertonne
+    PickupType.UNBEKANNT: (255, 0, 251),
 }
 
-DEFAULT_COLOR = "#000000"
+DEFAULT_COLOR = (0, 0, 0)
 
 
 @dataclass
@@ -82,34 +80,34 @@ def get_tomorrows_pickups(calendar: Calendar) -> list[Pickup]:
     return pickups
 
 
-def type_to_color(pickup_type: PickupType) -> str:
+def type_to_color(pickup_type: PickupType) -> tuple[int, int, int]:
     return CONTAINER_COLORS.get(pickup_type, DEFAULT_COLOR)
 
 
-def send_mqtt_color(color_hex: str) -> None:
-    payload = color_hex
-    mqtt_publish.single(
-        MQTT_TOPIC + "/col",
-        payload=payload,
-        hostname=MQTT_HOSTNAME,
-        auth={"username": MQTT_USERNAME, "password": MQTT_PASSWORD}
-        if MQTT_USERNAME
-        else None,
-    )
-    print(f"Published to {MQTT_TOPIC}: {payload}")
+def send_color(color_rgb: tuple[int, int, int]) -> None:
+    
+    url = f"{HA_URL}/api/services/light/turn_on"
 
-def print_cfg() -> None:
-    print("Configuration:")
-    print(f"  ICS_URL: {ICS_URL}")
-    print(f"  MQTT_HOSTNAME: {MQTT_HOSTNAME}")
-    print(f"  MQTT_TOPIC: {MQTT_TOPIC}")
-    print(f"  MQTT_USERNAME: {'(hidden)' if MQTT_USERNAME else '(not set)'}")
-    print(f"  MQTT_PASSWORD: {'(hidden)' if MQTT_PASSWORD else '(not set)'}")
-    print()
+    headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Content-Type": "application/json",
+    }
+
+    data = {
+        "entity_id": "light.muellabfuhrreminder_desk_leds",
+        "rgb_color": color_rgb,   # Red
+        "brightness": 100
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    print(response.status_code)
+    print(response.json())
+
+
 
 
 def main() -> None:
-    print_cfg()
 
     print("Fetching Abholtermine …")
     calendar = fetch_calendar(ICS_URL)
@@ -117,13 +115,13 @@ def main() -> None:
     pickups = get_tomorrows_pickups(calendar)
     if not pickups:
         print("No Abholtermine tomorrow.")
-        send_mqtt_color(DEFAULT_COLOR)
+        send_color(DEFAULT_COLOR)
 
     print(f"Abholtermine tomorrow ({date.today() + timedelta(days=1)}):")
     for pickup in pickups:
         color = type_to_color(pickup.type)
         print(f"  {pickup.summary} (type={pickup.type!r}) → {color}")
-        send_mqtt_color(color)
+        send_color(color)
 
 
 if __name__ == "__main__":
