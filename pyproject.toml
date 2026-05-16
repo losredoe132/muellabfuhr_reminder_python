@@ -8,7 +8,9 @@ dependencies = [
     "icalendar>=6.0",
     "paho-mqtt>=2.0",
     "python-dotenv>=1.2.2",
+    "coloredlogs>=15.0",
     "requests>=2.32",
+    "coloredlog>=0.2.5",
 ]
 
 [dependency-groups]

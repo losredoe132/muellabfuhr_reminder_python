@@ -1,15 +1,20 @@
+import logging
 import os
+
+import coloredlogs
 from dataclasses import dataclass
 from datetime import date, timedelta
 from enum import IntEnum
 
-import paho.mqtt.publish as mqtt_publish
 import requests
 from dotenv import load_dotenv
 from icalendar import Calendar
 from typing import NamedTuple
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
+coloredlogs.install(level=logging.INFO, logger=logger)
 
 ICS_URL = os.environ["ICS_URL"]
 HA_URL = os.getenv("HASS_IP")
@@ -115,27 +120,29 @@ def send_color(color_rgb: RGBColor) -> None:
             "entity_id": "light.muellabfuhrreminder_desk_leds",
         }
 
+    logger.info("Post to HA: %s with data %s", url, data)
     response = requests.post(url, headers=headers, json=data)
+    
 
-    print(response.status_code)
+    logger.info("HA response: %s", response.status_code)
     if response.status_code != 200:
-        print("Failed to send color to Home Assistant:", response.text)
+        logger.error("Failed to send color to Home Assistant: %s", response.text)
 
 def main() -> None:
 
-    print("Fetching Abholtermine …")
+    logger.info("Fetching Abholtermine …")
     calendar = fetch_calendar(ICS_URL)
 
     pickups = get_tomorrows_pickups(calendar)
-    if not pickups:
-        print("No Abholtermine tomorrow.")
+    if len(pickups) == 0:
+        logger.info("No Abholtermine tomorrow.")
         send_color(DEFAULT_COLOR)
-
-    print(f"Abholtermine tomorrow ({date.today() + timedelta(days=1)}):")
-    for pickup in pickups:
-        color = type_to_color(pickup.type)
-        print(f"  {pickup.summary} (type={pickup.type!r}) → {color}")
-        send_color(color)
+    else:
+        logger.info("Abholtermine tomorrow (%s):", date.today() + timedelta(days=1))
+        for pickup in pickups:
+            color = type_to_color(pickup.type)
+            logger.info("  %s (type=%r) → %s", pickup.summary, pickup.type, color)
+            send_color(color)
 
 
 if __name__ == "__main__":
