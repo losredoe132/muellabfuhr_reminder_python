@@ -7,11 +7,14 @@ import paho.mqtt.publish as mqtt_publish
 import requests
 from dotenv import load_dotenv
 from icalendar import Calendar
+from typing import NamedTuple
 
 load_dotenv()
 
 ICS_URL = os.environ["ICS_URL"]
 HA_URL = os.getenv("HASS_IP")
+HA_URL_LIGHT = HA_URL+"/api/services/light/"
+
 TOKEN = os.getenv("HASS_LLT")
 HASS_ENTITY_ID = os.getenv("HASS_ENTITY_ID")
 
@@ -22,6 +25,15 @@ class PickupType(IntEnum):
     PAPIER = 4
     GRAU = 5
     UNBEKANNT = 0
+
+class RGBColor(NamedTuple):
+    r: int
+    g: int
+    b: int
+
+    @property
+    def is_on(self) -> bool:
+        return self.r > 0 or self.g > 0 or self.b > 0
 
 
 PICKUP_TYPE_BY_NAME: dict[str, PickupType] = {
@@ -35,15 +47,15 @@ PICKUP_TYPE_BY_NAME: dict[str, PickupType] = {
 
 
 # RGB colors per container type
-CONTAINER_COLORS: dict[PickupType, tuple[int, int, int]] = {
-    PickupType.WERTSTOFF: (255, 255, 0),    # gelbe Wertstofftonne / gelber Sack
-    PickupType.RESTMUELL: (255, 0, 0),      # rote/schwarze Restmülltonne
-    PickupType.BIO: (0, 170, 0),            # grüne Biotonne
-    PickupType.PAPIER: (0, 0, 255),         # blaue Papiertonne
-    PickupType.UNBEKANNT: (255, 0, 251),
+CONTAINER_COLORS: dict[PickupType, RGBColor] = {
+    PickupType.WERTSTOFF: RGBColor(255, 255, 0),    # gelbe Wertstofftonne / gelber Sack
+    PickupType.RESTMUELL: RGBColor(255, 0, 0),      # rote/schwarze Restmülltonne
+    PickupType.BIO: RGBColor(0, 170, 0),            # grüne Biotonne
+    PickupType.PAPIER: RGBColor(0, 0, 255),         # blaue Papiertonne
+    PickupType.UNBEKANNT: RGBColor(255, 0, 251),
 }
 
-DEFAULT_COLOR = (0, 0, 0)
+DEFAULT_COLOR = RGBColor(0, 0, 0)
 
 
 @dataclass
@@ -80,32 +92,34 @@ def get_tomorrows_pickups(calendar: Calendar) -> list[Pickup]:
     return pickups
 
 
-def type_to_color(pickup_type: PickupType) -> tuple[int, int, int]:
+def type_to_color(pickup_type: PickupType) -> RGBColor:
     return CONTAINER_COLORS.get(pickup_type, DEFAULT_COLOR)
 
 
-def send_color(color_rgb: tuple[int, int, int]) -> None:
+def send_color(color_rgb: RGBColor) -> None:
     
-    url = f"{HA_URL}/api/services/light/turn_on"
-
     headers = {
-        "Authorization": f"Bearer {TOKEN}",
-        "Content-Type": "application/json",
-    }
+            "Authorization": f"Bearer {TOKEN}",
+            "Content-Type": "application/json",
+        }
 
-    data = {
-        "entity_id": "light.muellabfuhrreminder_desk_leds",
-        "rgb_color": color_rgb,   # Red
-        "brightness": 100
-    }
+    if color_rgb.is_on:
+        url = HA_URL_LIGHT + "turn_on"
+        data = {
+            "entity_id": "light.muellabfuhrreminder_desk_leds",
+            "rgb_color": color_rgb,
+        }
+    else:
+        url = HA_URL_LIGHT + "turn_off"
+        data = {
+            "entity_id": "light.muellabfuhrreminder_desk_leds",
+        }
 
     response = requests.post(url, headers=headers, json=data)
 
     print(response.status_code)
-    print(response.json())
-
-
-
+    if response.status_code != 200:
+        print("Failed to send color to Home Assistant:", response.text)
 
 def main() -> None:
 
