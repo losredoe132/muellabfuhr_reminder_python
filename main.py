@@ -111,13 +111,13 @@ def send_color(color_rgb: RGBColor) -> None:
     if color_rgb.is_on:
         url = HA_URL_LIGHT + "turn_on"
         data = {
-            "entity_id": "light.muellabfuhrreminder_desk_leds",
+            "entity_id": HASS_ENTITY_ID,
             "rgb_color": color_rgb,
         }
     else:
         url = HA_URL_LIGHT + "turn_off"
         data = {
-            "entity_id": "light.muellabfuhrreminder_desk_leds",
+            "entity_id": HASS_ENTITY_ID,
         }
 
     logger.info("Post to HA: %s with data %s", url, data)
